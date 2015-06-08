@@ -7,9 +7,6 @@
 ;    Video4Linux2 API, including video cameras.  Currently,
 ;    only video capture devices are supported.
 ;
-; INHERITS
-;    IDL_Object -- for implicit GetProperty/SetProperty
-;
 ; PROPERTIES:
 ; I: Can be set during initialization
 ; G: Can be read with GetProperty
@@ -745,7 +742,6 @@ pro idlv4l2__define
   COMPILE_OPT IDL2, HIDDEN
 
   struct = {IDLV4L2, $
-            inherits IDL_Object, $
             device_name: '', $
             fd: 0L, $
             dimensions: [0L, 0], $
