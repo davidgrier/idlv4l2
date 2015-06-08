@@ -61,7 +61,7 @@ pro idlv4l2::Read
 
   COMPILE_OPT IDL2, HIDDEN
 
-  readu, self.fd, *self.data
+  readu, self.fd, *self._data
 end
 
 ;;;;;
@@ -72,11 +72,11 @@ function idlv4l2::Read
 
   COMPILE_OPT IDL2, HIDDEN
 
-  readu, self.fd, *self.data
+  readu, self.fd, *self._data
   if self.doflip then $
-     *self.data = rotate(temporary(*self.data), $
+     *self._data = rotate(temporary(*self._data), $
                          (5*self.hflip + 7*self.vflip) mod 10)
-  return, *self.data
+  return, *self._data
 end
 
 ;;;;;
@@ -618,10 +618,10 @@ pro idlv4l2::GetProperty, device_name = device_name, $
   endif
 
   if arg_present(data) then $
-     data = *self.data
+     data = *self._data
 
   if arg_present(dimensions) then $
-     dimensions = size(*self.data, /dimensions)
+     dimensions = size(*self._data, /dimensions)
 
   if arg_present(hflip) then $
      hflip = self.hflip
@@ -641,8 +641,8 @@ pro idlv4l2::Allocate
   format = self.getformat()
   data = bytarr(format.bytesperline, format.height)
   
-  ptr_free, self.data
-  self.data = ptr_new(data, /no_copy)
+  ptr_free, self._data
+  self._data = ptr_new(data, /no_copy)
 end
 
 ;;;;;
@@ -728,7 +728,7 @@ pro idlv4l2::Cleanup
 
   COMPILE_OPT IDL2, HIDDEN
 
-  ptr_free, self.data
+  ptr_free, self._data
   close, self.fd
   free_lun, self.fd
 end
@@ -749,6 +749,6 @@ pro idlv4l2__define
             hflip: 0L, $
             vflip: 0L, $
             doflip: 0B, $
-            data: ptr_new() $
+            _data: ptr_new() $
            }
 end
