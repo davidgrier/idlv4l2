@@ -62,19 +62,6 @@ function idlv4l2::Read
   COMPILE_OPT IDL2, HIDDEN
 
   self.read
-  return, (self.doconvert) ? *self._rgb : *self._data
-end
-
-;;;;;
-;
-; idlv4l2::Read
-;
-pro idlv4l2::Read
-
-  COMPILE_OPT IDL2, HIDDEN
-
-  readu, self.fd, *self._data
-
   ;;; perform basic data conversions that are not handled
   ;;; by the driver
   if self.doconvert then begin
@@ -85,11 +72,26 @@ pro idlv4l2::Read
         if self.vflip then $
            *self._rgb = reverse(*self._rgb, 3, /overwrite)
      endif
-  endif else begin
-     if self.doflip then $
-        *self._data = rotate(temporary(*self._data), $
-                             (5*self.hflip + 7*self.vflip) mod 10)
-  endelse
+     return, *self._rgb
+  endif
+
+  return, (self.doflip) ? $
+          rotate(*self._data, (5*self.hflip + 7*self.vflip) mod 10) : $
+          *self._data
+end
+
+;;;;;
+;
+; idlv4l2::Read
+;
+pro idlv4l2::Read
+
+  COMPILE_OPT IDL2, HIDDEN
+
+  data = *self._data
+  readu, self.fd, data, transfer_count = nbytes
+  if nbytes eq self.nbytes then $
+     *self._data = data
 end
 
 ;;;;;
@@ -675,15 +677,14 @@ pro idlv4l2::Allocate
 
   fmt = self.getformat()
   data = bytarr(fmt.bytesperline, fmt.height)
-  
-  ptr_free, self._data
   self._data = ptr_new(data, /no_copy)
 
-  ptr_free, self._rgb
   if self.doconvert then begin
      rgb = bytarr(3, fmt.width, fmt.height)
      self._rgb = ptr_new(rgb, /no_copy)
   endif
+
+  self.nbytes = fmt.sizeimage
 end
 
 ;;;;;
@@ -795,6 +796,7 @@ pro idlv4l2__define
             device_name: '',     $ ; name of device file
             fd: 0L,              $ ; file descriptor of device
             dimensions: [0L, 0], $ ; dimensions of image
+            nbytes: 0L,          $ ; number of bytes in frame buffer
             id: obj_new(),       $ ; IDs of IOCTL requests
             hflip: 0L,           $ ; flag: horizontal flip
             vflip: 0L,           $ ; flag: vertical flip
