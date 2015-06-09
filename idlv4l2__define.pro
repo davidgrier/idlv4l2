@@ -686,7 +686,7 @@ pro idlv4l2::Allocate
   self._data = ptr_new(data, /no_copy)
 
   ptr_free, self._rgb
-  if strcmp(fmt.fmt.pixelformat, 'YUYV') then begin
+  if strcmp(fmt.pixelformat, 'YUYV') then begin
      rgb = bytarr(3, fmt.width, fmt.height)
      self._rgb = ptr_new(rgb, /no_copy)
   endif
