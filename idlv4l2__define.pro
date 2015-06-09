@@ -114,7 +114,7 @@ pro idlv4l2::YUV422_RGB
   rgb[1, 1:*:2, *] = byte(((Y2 - 0.813 * Cr - Cb) > 0) < 255)
   rgb[2, 1:*:2, *] = byte(((Y2 + 2.115 * Cr) > 0) < 255)
 
-  self._rgb = ptr_new(rgb, /nocopy)
+  self._rgb = ptr_new(rgb, /no_copy)
 end
 
 ;;;;;
@@ -206,7 +206,7 @@ pro idlv4l2::SetFormat, width = width, $
   self.ioctl, 'VIDIOC_S_FMT', fmt
   
   fmt = self.getfmt()
-  self.doconvert = strcmp(fmt.fmt.pixelformat, 'YUYV')
+  self.doconvert = strcmp(string(fmt.fmt.pixelformat), 'YUYV')
 end
 
 ;;;;;
@@ -602,7 +602,8 @@ pro idlv4l2::SetProperty, input = input, $
   if isa(vflip, /number, /scalar) then $
      self.vflip = keyword_set(vflip)
 
-  self.allocate
+  if doallocate then $
+     self.allocate
 end
 
 ;;;;;
@@ -617,9 +618,9 @@ pro idlv4l2::GetProperty, device_name = device_name, $
                           format = format, $
                           width = width, $
                           height = height, $
+                          dimensions = dimensions, $
                           greyscale = greyscale, $
                           data = data, $
-                          dimensions = dimensions, $
                           hflip = hflip, $
                           vflip = vflip
 
@@ -640,29 +641,22 @@ pro idlv4l2::GetProperty, device_name = device_name, $
   if arg_present(input_properties) then $
      input_properties = self.getinputproperties()
 
-  if arg_present(format) then $
-     format = self.getformat()
-
-  if arg_present(width) then begin
-     format = self.getformat()
+  format = self.getformat()
+  
+  if arg_present(width) then $
      width = format.width
-  endif
-
-  if arg_present(height) then begin
-     format = self.getformat()
+ 
+  if arg_present(height) then $
      height = format.height
-  endif
 
-  if arg_present(greyscale) then begin
-     format = self.getformat()
-     greyscale = strcmp(format.pixelformat, 'GREY')
-  endif
+  if arg_present(dimensions) then $
+     dimensions = [format.width, format.height]
+ 
+  if arg_present(greyscale) then $
+     greyscale = ~self.doconvert
 
   if arg_present(data) then $
      data = (self.doconvert) ? *self._rgb : *self._data
-
-  if arg_present(dimensions) then $
-     dimensions = size(*self._data, /dimensions)
 
   if arg_present(hflip) then $
      hflip = self.hflip
@@ -686,7 +680,7 @@ pro idlv4l2::Allocate
   self._data = ptr_new(data, /no_copy)
 
   ptr_free, self._rgb
-  if strcmp(fmt.pixelformat, 'YUYV') then begin
+  if self.doconvert then begin
      rgb = bytarr(3, fmt.width, fmt.height)
      self._rgb = ptr_new(rgb, /no_copy)
   endif
@@ -759,8 +753,7 @@ function idlv4l2::Init, arg, $
      self.setformat, greyscale = greyscale
 
   fmt = self.getformat()
-  if strcmp(fmt.pixelformat, 'YUYV') then $
-     self.doconvert = 1B
+  self.doconvert = strcmp(fmt.pixelformat, 'YUYV')
   
   ;;; can driver perform hflip and vflip?
   c = self.listcontrols()
