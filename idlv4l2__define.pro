@@ -55,6 +55,18 @@
 
 ;;;;;
 ;
+; idlv4l2::Read()
+;
+function idlv4l2::Read
+
+  COMPILE_OPT IDL2, HIDDEN
+
+  self.read
+  return, (self.doconvert) ? *self._rgb : *self._data
+end
+
+;;;;;
+;
 ; idlv4l2::Read
 ;
 pro idlv4l2::Read
@@ -62,21 +74,47 @@ pro idlv4l2::Read
   COMPILE_OPT IDL2, HIDDEN
 
   readu, self.fd, *self._data
+
+  ;;; perform basic data conversions that are not handled
+  ;;; by the driver
+  if self.doconvert then begin
+     self.yuv422_rgb
+     if self.doflip then begin
+        if self.hflip then $
+           *self._rgb = reverse(*self._rgb, 2, /overwrite)
+        if self.vflip then $
+           *self._rgb = reverse(*self._rgb, 3, /overwrite)
+     endif
+  endif else begin
+     if self.doflip then $
+        *self._data = rotate(temporary(*self._data), $
+                             (5*self.hflip + 7*self.vflip) mod 10)
+  endelse
 end
 
 ;;;;;
 ;
-; idlv4l2::Read()
+; idlv4l2::YUV422_RGB()
 ;
-function idlv4l2::Read
+pro idlv4l2::YUV422_RGB
 
   COMPILE_OPT IDL2, HIDDEN
 
-  readu, self.fd, *self._data
-  if self.doflip then $
-     *self._data = rotate(temporary(*self._data), $
-                         (5*self.hflip + 7*self.vflip) mod 10)
-  return, *self._data
+  yuv = float(*self._data)
+  Y1 = 1.164 * (yuv[0:*:4, *] - 16.)
+  Cr = yuv[1:*:4, *] - 128.
+  Y2 = 1.164 * (yuv[2:*:4, *] - 16.)
+  Cb = 0.391 * (yuv[3:*:4, *] - 128.)
+
+  rgb = *self._rgb
+  rgb[0, 0:*:2, *] = byte(((Y1 + 1.596 * Cr) > 0) < 255)
+  rgb[1, 0:*:2, *] = byte(((Y1 - 0.813 * Cr - Cb) > 0) < 255)
+  rgb[2, 0:*:2, *] = byte(((Y1 + 2.115 * Cr) > 0) < 255)
+  rgb[0, 1:*:2, *] = byte(((Y2 + 1.596 * Cr) > 0) < 255)
+  rgb[1, 1:*:2, *] = byte(((Y2 - 0.813 * Cr - Cb) > 0) < 255)
+  rgb[2, 1:*:2, *] = byte(((Y2 + 2.115 * Cr) > 0) < 255)
+
+  self._rgb = ptr_new(rgb, /nocopy)
 end
 
 ;;;;;
@@ -166,6 +204,9 @@ pro idlv4l2::SetFormat, width = width, $
      fmt.fmt.pixelformat = byte(keyword_set(color) ? 'YUYV' : 'GREY')
 
   self.ioctl, 'VIDIOC_S_FMT', fmt
+  
+  fmt = self.getfmt()
+  self.doconvert = strcmp(fmt.fmt.pixelformat, 'YUYV')
 end
 
 ;;;;;
@@ -638,11 +679,17 @@ pro idlv4l2::Allocate
 
   COMPILE_OPT IDL2, HIDDEN
 
-  format = self.getformat()
-  data = bytarr(format.bytesperline, format.height)
+  fmt = self.getformat()
+  data = bytarr(fmt.bytesperline, fmt.height)
   
   ptr_free, self._data
   self._data = ptr_new(data, /no_copy)
+
+  ptr_free, self._rgb
+  if strcmp(fmt.fmt.pixelformat, 'YUYV') then begin
+     rgb = bytarr(3, fmt.width, fmt.height)
+     self._rgb = ptr_new(rgb, /no_copy)
+  endif
 end
 
 ;;;;;
@@ -711,6 +758,10 @@ function idlv4l2::Init, arg, $
   if isa(greyscale, /number, /scalar) then $
      self.setformat, greyscale = greyscale
 
+  fmt = self.getformat()
+  if strcmp(fmt.pixelformat, 'YUYV') then $
+     self.doconvert = 1B
+  
   ;;; can driver perform hflip and vflip?
   c = self.listcontrols()
   self.doflip = ~c.haskey('hflip') || ~c.haskey('vflip')
@@ -729,6 +780,7 @@ pro idlv4l2::Cleanup
   COMPILE_OPT IDL2, HIDDEN
 
   ptr_free, self._data
+  ptr_free, self._rgb
   close, self.fd
   free_lun, self.fd
 end
@@ -742,13 +794,15 @@ pro idlv4l2__define
   COMPILE_OPT IDL2, HIDDEN
 
   struct = {IDLV4L2, $
-            device_name: '', $
-            fd: 0L, $
-            dimensions: [0L, 0], $
-            id: obj_new(), $
-            hflip: 0L, $
-            vflip: 0L, $
-            doflip: 0B, $
-            _data: ptr_new() $
+            device_name: '',     $ ; name of device file
+            fd: 0L,              $ ; file descriptor of device
+            dimensions: [0L, 0], $ ; dimensions of image
+            id: obj_new(),       $ ; IDs of IOCTL requests
+            hflip: 0L,           $ ; flag: horizontal flip
+            vflip: 0L,           $ ; flag: vertical flip
+            doflip: 0B,          $ ; flag: perform flips in software
+            doconvert: 0B,       $ ; flag: perform RGB conversion in software
+            _data: ptr_new(),    $ ; data provided by V4L2 driver
+            _rgb: ptr_new()      $ ; RGB data, if needed
            }
 end
