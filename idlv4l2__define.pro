@@ -659,7 +659,7 @@ pro idlv4l2::GetProperty, device_name = device_name, $
   endif
 
   if arg_present(data) then $
-     data = *self._data
+     data = (self.doconvert) ? *self._rgb : *self._data
 
   if arg_present(dimensions) then $
      dimensions = size(*self._data, /dimensions)
