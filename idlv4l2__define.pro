@@ -693,6 +693,8 @@ end
 function idlv4l2::Init, arg, $
                         device_name = device_name, $
                         dimensions = dimensions, $
+                        hflip = hflip, $
+                        vflip = vflip, $
                         greyscale = greyscale
 
   COMPILE_OPT IDL2, HIDDEN
@@ -758,6 +760,9 @@ function idlv4l2::Init, arg, $
   ;;; can driver perform hflip and vflip?
   c = self.listcontrols()
   self.doflip = ~c.haskey('hflip') || ~c.haskey('vflip')
+  
+  self.hflip = keyword_set(hflip)
+  self.vflip = keyword_set(vflip)
   
   self.allocate
 
