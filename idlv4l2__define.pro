@@ -20,6 +20,8 @@
 ; [IGS] greyscale: flag -- if set, return greyscale image
 ; [IGS] hflip: flag -- if set, flip images horizontally
 ; [IGS] vflip: flag -- if set, flip images vertically
+; [ G ] properties: hash of device properties defined by the driver
+;       that can be controlled through Get/SetProperty
 ;
 ; [ G ] data: image data
 ; [ G ] capabilities: structure describing device capabilities
@@ -49,6 +51,7 @@
 ;
 ; MODIFICATION HISTORY:
 ; 06/04/2015 Written by David G. Grier, New York University
+; 06/11/2015 DGG Support for driver-defined controls
 ;
 ; Copyright (c) 2015 David G. Grier
 ;-
@@ -259,7 +262,7 @@ function idlv4l2::ListControls
   for id = 0, 43 do begin
      qc = self.querycontrol(id)
      if ~qc.flags.disabled then $
-        controls[qc.name] = id
+        controls[strlowcase(qc.name)] = id
   endfor
 
   return, controls
@@ -269,15 +272,23 @@ end
 ;
 ; idlv4l2::QueryControl()
 ;
-function idlv4l2::QueryControl, _id
+function idlv4l2::QueryControl, arg
 
   COMPILE_OPT IDL2, HIDDEN
 
-  V4L2_CID_BASE   = '980900'XUL
-  id = ulong(_id) + V4L2_CID_BASE
-
+  if isa(arg, 'string') then begin
+     name = strlowcase(arg)
+     if self.properties.haskey(name) then $
+        id = self.properties[name] $
+     else begin
+        message, 'Invalid control: ' + arg, /inf
+        return, 0
+     endelse
+  endif else $
+     id = ulong(arg)
+  
   qc = {v4l2_queryctrl, $
-        id: id, $
+        id: id + self.id['V4L2_CID_BASE'], $
         type: 0UL, $
         name: bytarr(32), $
         minimum: 0L, $
@@ -318,7 +329,7 @@ function idlv4l2::QueryControl, _id
            execute_on_write: self.bitset(qc.flags, '200'X)  $
           }
   
-  idlqc = {id: qc.id - V4L2_CID_BASE, $
+  idlqc = {id: id, $
            type: type, $
            name: string(qc.name), $
            minimum: qc.minimum, $
@@ -349,10 +360,8 @@ pro idlv4l2::SetControl, id, value
      return
   endif
   
-  V4L2_CID_BASE = '980900'XUL
-
   control = {v4l2_control, $
-             id: ulong(id) + V4L2_CID_BASE, $
+             id: ulong(id) + self.id['V4L2_CID_BASE'], $
              value: long(value) $
             }
 
@@ -368,11 +377,11 @@ function idlv4l2::GetControl, id
   COMPILE_OPT IDL2, HIDDEN
 
   control = {v4l2_control, $
-             id: ulong(id), $
+             id: ulong(id) + self.id['V4L2_CID_BASE'], $
              value: 0L $
             }
   
-  self.ioctl, 'VIDIO_G_CTRL', control
+  self.ioctl, 'VIDIOC_G_CTRL', control
 
   return, control.value
 end
@@ -569,7 +578,8 @@ pro idlv4l2::SetProperty, input = input, $
                           dimensions = dimensions, $
                           greyscale = greyscale, $
                           hflip = hflip, $
-                          vflip = vflip
+                          vflip = vflip, $
+                          _ref_extra = propertylist
 
   COMPILE_OPT IDL2, HIDDEN
 
@@ -604,6 +614,15 @@ pro idlv4l2::SetProperty, input = input, $
   if isa(vflip, /number, /scalar) then $
      self.vflip = keyword_set(vflip)
 
+  if isa(propertylist) then begin
+     foreach name, strlowcase(propertylist) do begin
+        if self.properties.haskey(name) then begin
+           value = scope_varfetch(name, /ref_extra)
+           self.setcontrol, self.properties[name], value
+        endif
+     endforeach
+  endif
+
   if doallocate then $
      self.allocate
 end
@@ -624,7 +643,9 @@ pro idlv4l2::GetProperty, device_name = device_name, $
                           greyscale = greyscale, $
                           data = data, $
                           hflip = hflip, $
-                          vflip = vflip
+                          vflip = vflip, $
+                          properties = properties, $
+                          _ref_extra = propertylist
 
   COMPILE_OPT IDL2, HIDDEN
 
@@ -665,6 +686,18 @@ pro idlv4l2::GetProperty, device_name = device_name, $
 
   if arg_present(vflip) then $
      vflip = self.vflip
+
+  if arg_present(properties) then $
+     properties = self.properties
+
+  if isa(propertylist) then begin
+     foreach name, strlowcase(propertylist) do begin
+        if self.properties.haskey(name) then begin
+           value = self.getcontrol(self.properties[name])
+           (scope_varfetch(name, /ref_extra)) = value
+        endif
+      endforeach
+   endif  
 end
 
 ;;;;;
@@ -732,7 +765,8 @@ function idlv4l2::Init, arg, $
                  'VIDIOC_G_INPUT',   '80045626'XUL, $
                  'VIDIOC_S_INPUT',   'C0045627'XUL, $
                  'VIDIOC_ENUMINPUT', 'C050561A'XUL, $
-                 'VIDIOC_QUERYCAP',  '80685600'XUL  $
+                 'VIDIOC_QUERYCAP',  '80685600'XUL, $
+                 'V4L2_CID_BASE',      '980900'XUL  $
                 )
 
   cap = self.getcapabilities()
@@ -761,6 +795,7 @@ function idlv4l2::Init, arg, $
   ;;; can driver perform hflip and vflip?
   c = self.listcontrols()
   self.doflip = ~c.haskey('hflip') || ~c.haskey('vflip')
+  self.properties = c
   
   self.hflip = keyword_set(hflip)
   self.vflip = keyword_set(vflip)
@@ -793,16 +828,17 @@ pro idlv4l2__define
   COMPILE_OPT IDL2, HIDDEN
 
   struct = {IDLV4L2, $
-            device_name: '',     $ ; name of device file
-            fd: 0L,              $ ; file descriptor of device
-            dimensions: [0L, 0], $ ; dimensions of image
-            nbytes: 0L,          $ ; number of bytes in frame buffer
-            id: obj_new(),       $ ; IDs of IOCTL requests
-            hflip: 0L,           $ ; flag: horizontal flip
-            vflip: 0L,           $ ; flag: vertical flip
-            doflip: 0B,          $ ; flag: perform flips in software
-            doconvert: 0B,       $ ; flag: perform RGB conversion in software
-            _data: ptr_new(),    $ ; data provided by V4L2 driver
-            _rgb: ptr_new()      $ ; RGB data, if needed
+            device_name: '',       $ ; name of device file
+            fd: 0L,                $ ; file descriptor of device
+            dimensions: [0L, 0],   $ ; dimensions of image
+            nbytes: 0L,            $ ; number of bytes in frame buffer
+            id: obj_new(),         $ ; IDs of IOCTL requests
+            hflip: 0L,             $ ; flag: horizontal flip
+            vflip: 0L,             $ ; flag: vertical flip
+            properties: obj_new(), $ ; driver-supported properties
+            doflip: 0B,            $ ; flag: perform flips in software
+            doconvert: 0B,         $ ; flag: perform RGB conversion in software
+            _data: ptr_new(),      $ ; data provided by V4L2 driver
+            _rgb: ptr_new()        $ ; RGB data, if needed
            }
 end
