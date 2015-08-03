@@ -58,15 +58,12 @@
 
 ;;;;;
 ;
-; idlv4l2::Read()
+; idlv4l2::Convert
 ;
-function idlv4l2::Read
+function idlv4l2::Convert
 
   COMPILE_OPT IDL2, HIDDEN
 
-  self.read
-  ;;; perform basic data conversions that are not handled
-  ;;; by the driver
   if self.doconvert then begin
      self.yuv422_rgb
      if self.doflip then begin
@@ -75,12 +72,25 @@ function idlv4l2::Read
         if self.vflip then $
            *self._rgb = reverse(*self._rgb, 3, /overwrite)
      endif
-     return, *self._rgb
+     return, 1
   endif
 
-  return, (self.doflip) ? $
-          rotate(*self._data, (5*self.hflip + 7*self.vflip) mod 10) : $
-          *self._data
+  if self.doflip then $
+     *self._data = rotate(*self._data, $
+                          (5*self.hflip + 7*self.vflip) mod 10)
+  return, 0
+end
+
+;;;;;
+;
+; idlv4l2::Read()
+;
+function idlv4l2::Read
+
+  COMPILE_OPT IDL2, HIDDEN
+
+  self.read
+  return, self.convert() ? *self._rgb : *self._data
 end
 
 ;;;;;
@@ -679,7 +689,7 @@ pro idlv4l2::GetProperty, device_name = device_name, $
      greyscale = ~self.doconvert
 
   if arg_present(data) then $
-     data = (self.doconvert) ? *self._rgb : *self._data
+     data = self.convert() ? *self._rgb : *self._data
 
   if arg_present(hflip) then $
      hflip = self.hflip
