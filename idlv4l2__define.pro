@@ -640,8 +640,7 @@ pro idlv4l2::SetProperty, input = input, $
      endforeach
   endif
 
-  if doallocate then $  if arg_present(greyscale) then $
-     greyscale = ~self.doconvert
+  if doallocate then $
      self.allocate
 end
 
