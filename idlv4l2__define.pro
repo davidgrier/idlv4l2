@@ -52,6 +52,7 @@
 ; MODIFICATION HISTORY:
 ; 06/04/2015 Written by David G. Grier, New York University
 ; 06/11/2015 DGG Support for driver-defined controls
+; 11/04/2015 DGG grayscale is synonymous with greyscale.
 ;
 ; Copyright (c) 2015 David G. Grier
 ;-
@@ -196,6 +197,7 @@ pro idlv4l2::SetFormat, width = width, $
                         height = height, $
                         pixel_format = pixel_format, $
                         greyscale = greyscale, $
+                        grayscale = grayscale, $
                         color = color
 
   COMPILE_OPT IDL2, HIDDEN
@@ -212,8 +214,10 @@ pro idlv4l2::SetFormat, width = width, $
       (strlen(pixel_format) eq 4)) then $
          fmt.fmt.pixelformat = byte(strupcase(pixel_format))
 
-  if isa(greyscale, /number, /scalar) then $
-     fmt.fmt.pixelformat = byte(keyword_set(greyscale) ? 'GREY' : 'YUYV')
+  if isa(greyscale, /number, /scalar) || $
+     isa(grayscale, /number, /scalar) then $
+        fmt.fmt.pixelformat = byte((keyword_set(greyscale) || $
+                                    keyword_set(grayscale)) ? 'GREY' : 'YUYV')
 
   if isa(color, /number, /scalar) then $
      fmt.fmt.pixelformat = byte(keyword_set(color) ? 'YUYV' : 'GREY')
@@ -587,6 +591,7 @@ pro idlv4l2::SetProperty, input = input, $
                           height = height, $
                           dimensions = dimensions, $
                           greyscale = greyscale, $
+                          grayscale = grayscale, $
                           hflip = hflip, $
                           vflip = vflip, $
                           _ref_extra = propertylist
@@ -607,8 +612,10 @@ pro idlv4l2::SetProperty, input = input, $
      doallocate = 1
   endif
   
-  if isa(greyscale, /scalar, /number) then begin
-     self.setformat, greyscale = greyscale
+  if isa(greyscale, /scalar, /number) || $
+     isa(grayscale, /scalar, /number) then begin
+     self.setformat, greyscale = (keyword_set(greyscale) || $
+                                  keyword_set(grayscale))
      doallocate = 1
   endif
 
@@ -633,7 +640,8 @@ pro idlv4l2::SetProperty, input = input, $
      endforeach
   endif
 
-  if doallocate then $
+  if doallocate then $  if arg_present(greyscale) then $
+     greyscale = ~self.doconvert
      self.allocate
 end
 
@@ -651,6 +659,7 @@ pro idlv4l2::GetProperty, device_name = device_name, $
                           height = height, $
                           dimensions = dimensions, $
                           greyscale = greyscale, $
+                          grayscale = grayscale, $
                           data = data, $
                           hflip = hflip, $
                           vflip = vflip, $
@@ -687,6 +696,9 @@ pro idlv4l2::GetProperty, device_name = device_name, $
  
   if arg_present(greyscale) then $
      greyscale = ~self.doconvert
+
+  if arg_present(grayscale) then $
+     grayscale = ~self.doconvert
 
   if arg_present(data) then $
      data = self.convert() ? *self._rgb : *self._data
@@ -739,7 +751,8 @@ function idlv4l2::Init, arg, $
                         dimensions = dimensions, $
                         hflip = hflip, $
                         vflip = vflip, $
-                        greyscale = greyscale
+                        greyscale = greyscale, $
+                        grayscale = grayscale
 
   COMPILE_OPT IDL2, HIDDEN
 
@@ -796,8 +809,10 @@ function idlv4l2::Init, arg, $
      (n_elements(dimensions) eq 2) then $
         self.setformat, width = dimensions[0], height = dimensions[1]
 
-  if isa(greyscale, /number, /scalar) then $
-     self.setformat, greyscale = greyscale
+  if isa(greyscale, /number, /scalar) || $
+     isa(grayscale, /number, /scalar) then $
+        self.setformat, greyscale = (keyword_set(greyscale) || $
+                                     keyword_set(grayscale))
 
   fmt = self.getformat()
   self.doconvert = strcmp(fmt.pixelformat, 'YUYV')
