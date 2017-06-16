@@ -1,1 +1,2 @@
+*.md linguist-documentation
 *.pro linguist-language=IDL
