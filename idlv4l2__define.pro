@@ -789,8 +789,7 @@ function idlv4l2::Init, arg, $
   
   openu, fd, self.device_name, /get_lun, /rawio, error = err
   if (err ne 0) then begin
-     message, 'Could not open ' + self.device_name + $
-              ': ' + !ERROR_STATE.MSG, /inf
+     message, 'Could not open ' + self.device_name, /inf
      return, 0B
   endif
   
