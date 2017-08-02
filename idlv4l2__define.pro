@@ -267,6 +267,31 @@ end
 
 ;;;;;
 ;
+; idlv4l2::RequestBuffers
+;
+; Values obtained from /usr/include/linux/videodev2.h
+; The memory mapped buffer could be mapped into IDL
+; space with SHMMAP.
+;
+pro idlv4l2::RequestBuffers, count
+
+  COMPILE_OPT IDL2, HIDDEN
+
+  count = isa(count, /number, /scalar) ? ulong(count) : 1UL
+  req = {v4l2_requestbuffers, $
+         count: count, $
+         type: 1UL, $           ; V4L2_BUF_TYPE_VIDEO_CAPTURE
+         memory: 1UL, $         ; V4L2_MEMORY_MMAP
+         reserved: [0UL, 0UL] $
+        }
+
+  self.ioctl, 'VIDIOC_REQBUFS', req, error=error
+  if error then $
+     message, 'error: '+string(error), /inf
+end
+
+;;;;;
+;
 ; idlv4l2::ListControls()
 ;
 function idlv4l2::ListControls
@@ -790,6 +815,7 @@ function idlv4l2::Init, arg, $
                  'VIDIOC_S_INPUT',   'C0045627'XUL, $
                  'VIDIOC_ENUMINPUT', 'C050561A'XUL, $
                  'VIDIOC_QUERYCAP',  '80685600'XUL, $
+                 'VIDIOC_REQBUFS',   'C0145608'XUL, $
                  'V4L2_CID_BASE',      '980900'XUL  $
                 )
 
@@ -817,7 +843,7 @@ function idlv4l2::Init, arg, $
 
   fmt = self.getformat()
   self.doconvert = strcmp(fmt.pixelformat, 'YUYV')
-  
+
   ;;; can driver perform hflip and vflip?
   c = self.listcontrols()
   self.doflip = ~c.haskey('hflip') || ~c.haskey('vflip')
