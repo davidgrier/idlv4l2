@@ -53,8 +53,9 @@
 ; 06/04/2015 Written by David G. Grier, New York University
 ; 06/11/2015 DGG Support for driver-defined controls
 ; 11/04/2015 DGG grayscale is synonymous with greyscale.
+; 08/01/2017 DGG correct check for errors when opening device file.
 ;
-; Copyright (c) 2015 David G. Grier
+; Copyright (c) 2015-2017 David G. Grier
 ;-
 
 ;;;;;
@@ -762,8 +763,9 @@ function idlv4l2::Init, arg, $
                      device_name : '/dev/video0'
   
   openu, fd, self.device_name, /get_lun, /rawio, error = err
-  if err then begin
-     message, 'Could not open ' + self.device_name, /inf
+  if (err ne 0) then begin
+     message, 'Could not open ' + self.device_name + $
+              ': ' + !ERROR_STATE.MSG, /inf
      return, 0B
   endif
   
