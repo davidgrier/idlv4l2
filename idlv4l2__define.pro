@@ -850,7 +850,7 @@ function idlv4l2::Init, arg, $
   
   self.hflip = keyword_set(hflip)
   self.vflip = keyword_set(vflip)
-  
+
   self.allocate
 
   return, 1B
