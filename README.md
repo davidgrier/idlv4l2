@@ -3,7 +3,7 @@
 **IDL interface for video capture using the Video4Linux2 API**
 
 IDL is the Interactive Data Language, and is a product of
-[Exelis Visual Information Solutions](http://www.exelisvis.com)
+[Harris Geospatial Solutions](http://www.harrisgeospatial.com/SoftwareTechnology/IDL.aspx)
 
 Video4Linux2 is part of the 
 [Linux Media Infrastructure API](http://linuxtv.org/downloads/v4l-dvb-apis/)
@@ -13,11 +13,12 @@ IDLv4l2 is licensed under the
 
 ## What it does
 
-IDLv4l2 is a video framegrabber for IDL.  Its goal is to provide
-IDL with the ability to read images directly from video cameras.
+IDLv4l2 is a video framegrabber for IDL that is written entirely
+in IDL.  Its goal is to provide IDL with the ability to read images
+directly from video cameras.
 Because it is based on the V4L2 API, it works only on GNU/linux
 systems and only for cameras supported by V4L2.
-It has been tested with IDL 8.3 and IDL 8.4.
+It has been tested with IDL 8.3 through IDL 8.6.
 
 Typical Usage:
 
